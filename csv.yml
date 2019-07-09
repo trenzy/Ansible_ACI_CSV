@@ -1,0 +1,290 @@
+---
+- name: Configuring Tenant with CSV file
+  hosts: apic1
+  connection: local
+  gather_facts: false
+
+  tasks:
+  # Read a CSV file and access Tenant csv
+  - name: Read data from CSV file to be used to configure ACI
+    read_csv:
+      path: tenant.csv
+      # key: tenant
+    register: mytenant
+    delegate_to: localhost
+
+  # Used for debugging purposes to make sure list is correct.
+  - debug:
+      msg: Tenant {{ mytenant.list.0.tenant }} and VRF {{ mytenant.list.0.vrf }}
+
+  - debug:
+      msg: Tenant {{ mytenant.list.1.tenant }} and VRF {{ mytenant.list.1.vrf }}
+
+  - name: Create Tenants using CSV and loop
+    aci_tenant:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      description: "Tenant configured by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - tenant: "{{ mytenant.list.0.tenant }}"
+      - tenant: "{{ mytenant.list.1.tenant }}"
+
+  - name: Create ansible-VRF
+    aci_vrf:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      vrf: "{{ item.vrf }}"
+      description: "VRF configured by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        vrf: "{{ mytenant.list.0.vrf }}"
+      - tenant: "{{ mytenant.list.1.tenant }}"
+        vrf: "{{ mytenant.list.1.vrf }}"
+
+  - name: Creating BDs with CSV file
+    aci_bd:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      vrf: "{{ item.vrf }}"
+      bd: "{{ item.bd }}"
+      enable_routing: true
+      arp_flooding: false
+      l2_unknown_unicast: proxy
+      description: "BD configured by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        vrf: "{{ mytenant.list.0.vrf }}"
+        bd: "{{ mytenant.list.0.bd }}"
+      - tenant: "{{ mytenant.list.1.tenant }}"
+        vrf: "{{ mytenant.list.1.vrf }}"
+        bd: "{{ mytenant.list.1.bd }}"
+
+  - name: Creating ansible-BD Subnet using CSV
+    aci_bd_subnet:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      bd: "{{ item.bd }}"
+      gateway: "{{ item.ip }}"
+      mask: "{{ item.mask }}"
+      scope: "{{ item.scope }}"
+      description: "BD subnet added by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        # vrf: "{{ mytenant.list.0.vrf }}"
+        bd: "{{ mytenant.list.0.bd }}"
+        ip: "{{ mytenant.list.0.bd_gateway }}"
+        mask: "{{ mytenant.list.0.bd_mask }}"
+        scope: "{{ mytenant.list.0.bd_scope }}"
+      - tenant: "{{ mytenant.list.1.tenant }}"
+        #  vrf: "{{ mytenant.list.1.vrf }}"
+        bd: "{{ mytenant.list.1.bd }}"
+        ip: "{{ mytenant.list.1.bd_gateway }}"
+        mask: "{{ mytenant.list.1.bd_mask }}"
+        scope: "{{ mytenant.list.1.bd_scope }}"
+
+  - name: Create ansible-AP
+    aci_ap:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      ap: "{{ item.app_pro }}"
+      description: "app profile configured by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        app_pro: "{{ mytenant.list.0.ap }}"
+      - tenant: "{{ mytenant.list.1.tenant }}"
+        app_pro: "{{ mytenant.list.1.ap }}"
+
+  - name: Creating EPGs
+    aci_epg:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      ap: "{{ item.app_pro }}"
+      epg: "{{ item.epg }}"
+      bd: "{{ item.bd }}"
+      description: "EPG configured by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      # For first set of EPGs
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        app_pro: "{{ mytenant.list.0.ap }}"
+        bd: "{{ mytenant.list.0.bd }}"
+        epg: "{{ mytenant.list.0.epg1 }}"
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        app_pro: "{{ mytenant.list.0.ap }}"
+        bd: "{{ mytenant.list.0.bd }}"
+        epg: "{{ mytenant.list.0.epg2 }}"
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        app_pro: "{{ mytenant.list.0.ap }}"
+        bd: "{{ mytenant.list.0.bd }}"
+        epg: "{{ mytenant.list.0.epg3 }}"
+      # For second set of EPGs
+      - tenant: "{{ mytenant.list.1.tenant }}"
+        app_pro: "{{ mytenant.list.1.ap }}"
+        bd: "{{ mytenant.list.1.bd }}"
+        epg: "{{ mytenant.list.1.epg1 }}"
+      - tenant: "{{ mytenant.list.1.tenant }}"
+        app_pro: "{{ mytenant.list.1.ap }}"
+        bd: "{{ mytenant.list.1.bd }}"
+        epg: "{{ mytenant.list.1.epg2 }}"
+      - tenant: "{{ mytenant.list.1.tenant }}"
+        app_pro: "{{ mytenant.list.1.ap }}"
+        bd: "{{ mytenant.list.1.bd }}"
+        epg: "{{ mytenant.list.1.epg3 }}"
+
+  - name: Creating Contracts
+    aci_contract:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      contract: "{{ item.contract }}"
+      tenant: "{{ item.tenant }}"
+      scope: "context"
+      description: "Contract created by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - contract: "{{ mytenant.list.0.contract1 }}"
+        tenant: "{{ mytenant.list.0.tenant }}"
+      - contract: "{{ mytenant.list.0.contract2 }}"
+        tenant: "{{ mytenant.list.0.tenant }}"
+
+  - name: Add Filters
+    aci_filter:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      filter: "{{ item.filter }}"
+      tenant: "{{ item.tenant }}"
+      description: "Filter created by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - filter: "{{ mytenant.list.0.filter1 }}"
+        tenant: "{{ mytenant.list.0.tenant }}"
+      - filter: "{{ mytenant.list.0.filter2 }}"
+        tenant: "{{ mytenant.list.0.tenant }}"
+
+
+  - name: Add Port 80 and 1433 to Filter entries
+    aci_filter_entry:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      entry: "{{ item.entry }}"
+      tenant: "{{ item.tenant }}"
+      ether_type: ip
+      ip_protocol: "{{ item.protocol }}"
+      dst_port: "{{ item.dst_port }}"
+      filter: "{{ item.filter }}"
+      description: "Filter Entry created by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - filter: "{{ mytenant.list.0.filter1 }}"
+        tenant: "{{ mytenant.list.0.tenant }}"
+        entry: "{{ mytenant.list.0.filter1_entry }}"
+        dst_port: "{{ mytenant.list.0.port1 }}"
+        protocol: "{{ mytenant.list.0.protocol }}"
+      - filter: "{{ mytenant.list.0.filter2 }}"
+        tenant: "{{ mytenant.list.0.tenant }}"
+        entry: "{{ mytenant.list.0.filter2_entry }}"
+        dst_port: "{{ mytenant.list.0.port2 }}"
+        protocol: "{{ mytenant.list.0.protocol }}"
+
+  - name: Bind subjects to contracts
+    aci_contract_subject:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      contract: "{{ item.contract }}"
+      subject: "{{ item.subject }}"
+      reverse_filter: yes
+      description: "Subject created by Ansible"
+      validate_certs: false
+      state: present
+    loop:
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        contract: "{{ mytenant.list.0.contract1 }}"
+        subject: "{{ mytenant.list.0.subject1 }}"
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        contract: "{{ mytenant.list.0.contract2 }}"
+        subject: "{{ mytenant.list.0.subject2 }}"
+
+  - name: Bind Contract Subjects to filter
+    aci_contract_subject_to_filter:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      contract: "{{ item.contract }}"
+      filter: "{{ item.filter }}"
+      subject: "{{ item.subject }}"
+      validate_certs: false
+      state: present
+    loop:
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        contract: "{{ mytenant.list.0.contract1 }}"
+        filter: "{{ mytenant.list.0.filter1 }}"
+        subject: "{{ mytenant.list.0.subject1 }}"
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        contract: "{{ mytenant.list.0.contract2 }}"
+        filter: "{{ mytenant.list.0.filter2 }}"
+        subject: "{{ mytenant.list.0.subject2 }}"
+
+  - name: Bind EPGs to Contract
+    aci_epg_to_contract:
+      hostname: "{{ inventory_hostname }}"
+      username: "{{ username }}"
+      private_key: "{{ private_key }}"
+      tenant: "{{ item.tenant }}"
+      epg: "{{ item.epg }}"
+      ap: "{{ item.app_pro }}"
+      contract: "{{ item.contract }}"
+      contract_type: "{{ item.type }}"
+      validate_certs: no
+      state: present
+    loop:
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        epg: "{{ mytenant.list.0.epg1 }}"
+        type: "{{ mytenant.list.0.contract_type1 }}"
+        contract: "{{ mytenant.list.0.contract1 }}"
+        app_pro: "{{ mytenant.list.0.ap }}"
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        epg: "{{ mytenant.list.0.epg2 }}"
+        type: "{{ mytenant.list.0.contract_type2 }}"
+        contract: "{{ mytenant.list.0.contract1 }}"
+        app_pro: "{{ mytenant.list.0.ap }}"
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        epg: "{{ mytenant.list.0.epg2 }}"
+        type: "{{ mytenant.list.0.contract_type1 }}"
+        contract: "{{ mytenant.list.0.contract2 }}"
+        app_pro: "{{ mytenant.list.0.ap }}"
+      - tenant: "{{ mytenant.list.0.tenant }}"
+        epg: "{{ mytenant.list.0.epg3 }}"
+        type: "{{ mytenant.list.0.contract_type2 }}"
+        contract: "{{ mytenant.list.0.contract2 }}"
+        app_pro: "{{ mytenant.list.0.ap }}"
